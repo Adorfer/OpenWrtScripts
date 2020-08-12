@@ -4,7 +4,7 @@ OpenWrtScripts
 This is a set of scripts (sometimes also called "Openscripts") that report, configure and measure (and improve) latency in home routers (and everywhere else!) 
 These scripts work equally well for both [LEDE](https://lede-project.org) and [OpenWrt](https://openwrt.org) and include:
 
-* [getstats.sh](#getstatssh) - a script to collect troubleshooting information that helps us diagnose problems in the OpenWrt distribution.
+* [getstats.sh](#getstatssh) - a script to collect troubleshooting information that helps to diagnose problems in the OpenWrt distribution.
 
 * [opkgscript.sh](#opkgscriptsh) - a script to save the list of 
 currently-installed packages (say, before a sysupgrade), 
@@ -14,8 +14,9 @@ and then restore the full set of packages after the upgrade.
 
 * [betterspeedtest.sh](#betterspeedtestsh) & [netperfrunner.sh](#netperfrunnersh) & [networkhammer.sh](#networkhammersh) - scripts that measure the performance of your router or offer load to the network for testing.
 
+* [idlelatency.sh](#idlelatencysh) - a script to measure the latency of an "idle line" without any additional traffic generation from the script.
+
 * [tunnelbroker.sh](#tunnelbrokersh) - a script to set up a IPv6 6-in-4 tunnel to TunnelBroker.net. 
-*This script was originally created for CeroWrt. It has not been converted for OpenWrt/LEDE.*
 
 These scripts can be saved in the `/usr/lib/OpenWrtScripts` directory. 
 The easiest way to do this is to use ssh into the router and enter these commands:
@@ -34,12 +35,14 @@ The `getstats.sh` script helps diagnose problems with OpenWrt.
 If you report a problem, it is always helpful to include the output of this script. 
 
 `getstats.sh` executes a built-in set of commands and writes the collected output to `/tmp/openwrtstats.txt`. 
-The script also executes commands passed as arguments on the command line. 
+The script also executes commands passed as arguments on the command line.
+It also displays a list of user-installed opkg packages - that is those not installed by default. 
 In the example below, the output would contain results from the standard set of commands plus the two additional arguments: 
 
-**Example:** `sh getstats.sh "ls /usr/lib" "ls -al /etc/config"`
+**Usage:** `sh getstats.sh "ls /usr/lib" "ls -al /etc/config"`
 
-**To install and run this script:** The script is self-contained, and can be placed in any directory. Read the top of the [getstats.sh](./getstats.sh) file for a simple procedure. 
+**To install and run this script:** The script is self-contained, and can be placed in any directory. 
+Read the top of the [getstats.sh](./getstats.sh) file for a simple procedure for using the script. 
 
 **Sample output file:** See a sample output file - [openwrtstats.txt](./sample_output/openwrtstats.txt)
 
@@ -53,7 +56,7 @@ By default, the `write` command saves the list of installed packages in
 `install` command reads the file, to restore that set of packages. 
 Cloned from Malte Forkel's [original script.](https://forum.openwrt.org/viewtopic.php?pid=194478#p194478)
 
-**Example:** 
+**Usage:** 
 
 `sh opkgscript.sh write` _use before sysupgrade to save the current set of packages_
 
@@ -115,7 +118,7 @@ Here's why that's important: If the data transfers do increase the latency/lag m
 
 The betterspeedtest.sh script measures latency during file transfers. To invoke it:
 
-    sh betterspeedtest.sh [ -4 | -6 ] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [-n simultaneous-streams ]
+    sh betterspeedtest.sh [ -4 | -6 ] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -i ] [ -n simultaneous-streams ]
 
 Options, if present, are:
 
@@ -125,9 +128,12 @@ and netperf-eu (Denmark)
 * -4 | -6:     Enable ipv4 or ipv6 testing (default - ipv4)
 * -t | --time: Duration for how long each direction's test should run - (default - 60 seconds)
 * -p | --ping: Host to ping to measure latency (default - gstatic.com)
+* -i | --idle: Don't send traffic, only measure idle latency
 * -n | --number: Number of simultaneous sessions (default - 5 sessions)
 
 The output shows separate (one-way) download and upload speed, along with a summary of latencies, including min, max, average, median, and 10th and 90th percentiles so you can get a sense of the distribution. The tool also displays the percent packet loss. The example below shows two measurements, bad and good. 
+
+The Idle test uses the same process to measure latency of the line, but without any additional traffic from this script. It runs for the specified --time. 
 
 On the left is a test run without SQM. Note that the latency gets huge (greater than 5 seconds), meaning that network performance would be terrible for anyone else using the network. 
 
@@ -157,6 +163,34 @@ On the right is a test using SQM: the latency goes up a little (less than 23 mse
           Avg: 3587.534                                                Avg: 50.486
         90pct: 5163.901                                              90pct: 56.061
           Max: 5334.262                                                Max: 69.333
+
+---
+## [idlelatency.sh](https://github.com/richb-hanover/OpenWrtScripts/blob/master/idlelatency.sh)
+
+The `idlelatency.sh` script summarizes ping times measured over a specified time interval. To invoke the script:
+
+    sh idlelatency.sh [ -4 | -6 ] [ -t duration ] [ -p host-to-ping ] 
+    
+Options, if present are:
+
+* -4 | -6: Enable ipv4 or ipv6 testing (default - ipv4)
+* -t | --time: Duration for how long each direction's test should run - (default - 60 seconds)
+* -p | --ping: Host to ping to measure latency (default - gstatic.com)
+
+The output of the script looks like this:
+
+```
+root@openwrt: sh idlelatency.sh
+2020-05-02 12:10:53 Testing idle line while pinging gstatic.com (60 seconds)
+............................................................
+  Latency: (in msec, 60 pings, 0.00% packet loss)
+      Min: 20.438
+    10pct: 22.633
+   Median: 36.907
+      Avg: 35.143
+    90pct: 45.994
+      Max: 50.377
+```
 
 ---         
 ## [netperfrunner.sh](https://github.com/richb-hanover/OpenWrtScripts/blob/master/netperfrunner.sh)
@@ -210,24 +244,34 @@ The `networkhammer.sh` script continually invokes the netperfrunner script to pr
 ---
 ## [tunnelbroker.sh](https://github.com/richb-hanover/OpenWrtScripts/blob/master/tunnelbroker.sh)
 
-_[This script was originally created for CeroWrt. It has not been converted for OpenWrt/LEDE.]_
-
-The `tunnelbroker.sh` script configures CeroWrt to create an IPv6 tunnel via Hurricane Electric. 
+The `tunnelbroker.sh` script configures OpenWrt to create an IPv6 tunnel via Hurricane Electric. 
 It's an easy way to become familiar with IPv6 if your ISP doesn't offer native IPv6 capabilities. 
-There are three steps:
+There are several steps:
 
-1. Go to the Hurricane Electric [TunnelBroker.net](http://www.tunnelbroker.net/)  site to set up your free account. There are detailed instructions for setting up an account and an IPv6 tunnel at the
-   [IPv6 Tunnel page.](http://www.bufferbloat.net/projects/cerowrt/wiki/IPv6_Tunnel) 
-2. Edit the tunnelbroker.sh script, using the parameters supplied by Tunnelbroker.net. They're on the site's "Tunnel Details" page. Click on the "Example
-Configurations" tab and select "OpenWRT Backfire 10.03.1". Use the info to fill in the corresponding lines of the script. 
-3. ssh into the router and execute this script with these steps.
+1. Go to the Hurricane Electric [TunnelBroker.net](http://www.tunnelbroker.net/) site to set up your free account. 
+There are detailed instructions for setting up an account and an IPv6 tunnel in the script itself, or at the
+[IPv6 Tunnel page](http://www.bufferbloat.net/projects/cerowrt/wiki/IPv6_Tunnel) of [bufferbloat.net](bufferbloat.net)
+2. From the tunnelbroker main page, click "Create Regular Tunnel"
+  * Enter your IP address in "IPv4 Endpoint" (paste in the address you're "viewing from")
+  * Select a nearby Tunnel Server
+  * Click "Create Tunnel"
+  
+3.  On the resulting Tunnel Details page, click **Assign /48** to get a /48 prefix
+4. From the Tunnel Details page, copy and paste the matching values into the `tunnel.sh` file. 
+The *User\_Name* is the name you used to create the account. 
+Find the *Update\_Key* on the Advanced Tab of the Tunnel Details page.
+
+5. ssh into the router and execute this script with these steps.
     
-        ssh root@172.30.42.1
+        ssh root@192.168.1.1     # use the address of your router
         cd /tmp
         cat > tunnel.sh 
         [paste in the contents of this file, then hit ^D]
+        [edit the script to match your tunnelbroker values]
         sh tunnel.sh
         [Restart your router. This seems to make a difference.]
   
-Presto! Your tunnel is up! Your computer should get a global IPv6 address, and should be able to communicate directly with IPv6 devices on the Internet. To test it, try: `ping6 ivp6.google.com`
+Presto! Your tunnel is up! 
+Your computer should get a global IPv6 address, and should be able to communicate directly with IPv6 devices on the Internet. 
+To test it, try: `ping6 ivp6.google.com`
 
